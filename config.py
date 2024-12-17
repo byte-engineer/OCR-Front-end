@@ -2,7 +2,7 @@ import os
 
 
 ROOT = os.path.dirname(__file__)
-LANG = 'ara'
+LANG = 'eng+ara'
 FILE = "media/PDF/report_1.pdf"
 
 

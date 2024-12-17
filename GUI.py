@@ -19,11 +19,43 @@ class WorkerThread(QtCore.QThread):
     def run(self):
         images = OCR.pdf_to_images(self.path)
         total_images = len(images)
-        extracted_text = self.imgs_to_text(images, total_images)
-        OCR.w_to_txt(extracted_text, os.path.splitext(self.path)[0]+".txt")
-        self.finished.emit(extracted_text)
+        self.imgs_to_text(images, total_images)
 
-    def imgs_to_text(self, images, total_images):
+
+
+
+        # extracted_text = self.imgs_to_text(images, total_images)
+        # # OCR.w_to_txt(extracted_text, os.path.splitext(self.path)[0]+".txt")
+        # self.finished.emit(extracted_text)
+
+
+
+
+    def imgs_to_text(self, images, total_images, path =None):
+
+
+        if path is None:
+            path = os.path.splitext(self.path)[0]+".txt"
+        
+        with open(path, 'w') as file:
+            file.write('')                        # Clear the file.
+
+
+        for i, image in enumerate(images):
+            text = pytesseract.image_to_string(image, lang=con.LANG)
+
+            self.progress.emit(i + 1, total_images)
+
+            with open(path, 'ab') as file:
+                file.write(bytes(f"\n\n{'*' * 30} ( Page {i + 1} ) {'*' * 30}\n\n\n {text}", 'utf-8'))
+
+
+        self.finished.emit("Finished...")
+
+
+
+
+    def _imgs_to_text(self, images, total_images):
         extracted_text = ""
         for i, image in enumerate(images):
             text = pytesseract.image_to_string(image, lang=con.LANG)
@@ -81,7 +113,7 @@ class Main(wdg.QMainWindow):
         layout.addWidget(self.strt_btn)
 
     def path_changed(self):
-        self.PATH = self.path_in.text()
+        self.PATH = self.path_in.text().strip(' \'"')
 
     def srch_for_path(self):
         file_name, _ = wdg.QFileDialog.getOpenFileName(self, 'Select PDF', '', 'PDF Files (*.pdf)')
@@ -91,7 +123,7 @@ class Main(wdg.QMainWindow):
 
 
         self.waiting_bar.setValue(0)
-        self.lbl_prog.setText("Turning PDF for images")
+        self.lbl_prog.setText("Turning PDF to images")
         self.strt_btn.setEnabled(False)
         
 
