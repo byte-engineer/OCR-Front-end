@@ -89,8 +89,6 @@ class Main(wdg.QMainWindow):
         self.setGeometry(300, 300, 400, 150)
         self.setFixedSize(400, 180)
         self.setStyleSheet(con.QSS)
-        self.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling) 
-        # self.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
 
 
         layout = wdg.QVBoxLayout()

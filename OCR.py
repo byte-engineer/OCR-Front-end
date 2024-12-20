@@ -56,8 +56,5 @@ def w_to_txt(extracted_text, out_path= None):
 
 
 
-t = "juh"
-t.match("regex")
-
 if __name__ == '__main__':
     main()
