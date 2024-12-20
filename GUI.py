@@ -1,169 +1,150 @@
 from pdf2image import convert_from_path
-import PyQt5.QtWidgets as wdg
-from PyQt5.QtCore import Qt
-from PyQt5 import QtCore
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QProgressBar, QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox, QWidget, QHBoxLayout
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 import pytesseract
 import os
 import config as con
 
 
-
-class WorkerThread(QtCore.QThread):
-    progress = QtCore.pyqtSignal(int, int)  # Emit both current and total
-    finished = QtCore.pyqtSignal(str)  # Emit the extracted text
+class WorkerThread(QThread):
+    progress = pyqtSignal(int, int)  # Emits current progress and total pages
+    finished = pyqtSignal(str)      # Emits completion message
 
     def __init__(self, path):
         super().__init__()
         self.path = path
 
     def run(self):
-        images = self.pdf_to_images(self.path)
-        total_images = len(images)
-        self.imgs_to_text(images, total_images)
+        try:
+            images = self.pdf_to_images(self.path)
+            total_images = len(images)
+            self.extract_text_from_images(images, total_images)
+        except Exception as e:
+            self.finished.emit(f"Error: {str(e)}")
 
-
-    def imgs_to_text(self, images, total_images, path =None):
-
-
-        if path is None:
-            path = os.path.splitext(self.path)[0]+".txt"
-        
-        with open(path, 'w') as file:
-            file.write('')                        # Clear the file.
-
-
-        for i, image in enumerate(images):
-            text = pytesseract.image_to_string(image, lang=con.LANG)
-
-            self.progress.emit(i + 1, total_images)
-
-            with open(path, 'ab') as file:
-                file.write(bytes(f"\n\n{'*' * 30} ( Page {i + 1} ) {'*' * 30}\n\n\n {text}", 'utf-8'))
-
-        self.finished.emit("Finished...")
-
-
-    def pdf_to_images(path= None):
-
-        path = os.path.join(os.path.dirname(__file__), path)
-
-        if not os.path.exists(path):
-            print("path Not exist")
-            exit()
-
+    def pdf_to_images(self, path):
+        """
+        Convert the given PDF to a list of images.
+        """
         pytesseract.pytesseract.tesseract_cmd = con.tesseract_cmd
-
-        if path is None:
-            pdf_path  = os.path.join(os.path.dirname(__file__), con.FILE)
-        else:
-            pdf_path = path
-
-        images = convert_from_path(pdf_path, dpi= 200, poppler_path= con.poppler_path)
-
+        images = convert_from_path(path, dpi=200, poppler_path=con.poppler_path)
         return images
 
+    def extract_text_from_images(self, images, total_images):
+        """
+        Extract text from images and save to a text file.
+        """
+        output_path = os.path.splitext(self.path)[0] + ".txt"
+        with open(output_path, 'w', encoding='utf-8') as file:
+            file.write('')  # Clear the file
 
-
-    def _imgs_to_text(self, images, total_images):
-        extracted_text = ""
         for i, image in enumerate(images):
             text = pytesseract.image_to_string(image, lang=con.LANG)
-
-            # Emit progress: current index and total images
             self.progress.emit(i + 1, total_images)
+            with open(output_path, 'a', encoding='utf-8') as file:
+                file.write(f"\n\n{'*' * 30} ( Page {i + 1} ) {'*' * 30}\n\n{text}")
 
-            extracted_text += f"\n\n{'*' * 30} ( Page {i + 1} ) {'*' * 30}\n\n\n" + text
-
-        return extracted_text
+        self.finished.emit("OCR process completed.")
 
 
-class Main(wdg.QMainWindow):
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.PATH = ''
         self.worker = None
-        self.UI()
+        self.init_ui()
 
-    def UI(self):
-        self.setWindowTitle(f"OCR-{con.owner}")
-        self.setGeometry(300, 300, 400, 150)
+    def init_ui(self):
+        """
+        Initialize the main window UI.
+        """
+        self.setWindowTitle(f"OCR - {con.owner}")
+        self.setGeometry(300, 300, 400, 180)
         self.setFixedSize(400, 180)
         self.setStyleSheet(con.QSS)
 
-
-        layout = wdg.QVBoxLayout()
-        container = wdg.QWidget()
-        self.setCentralWidget(container)
+        # Layouts
+        layout = QVBoxLayout()
+        container = QWidget()
         container.setLayout(layout)
+        self.setCentralWidget(container)
 
-
-        self.lbl_prog = wdg.QLabel("Pages: (0/0)")
+        # Progress label
+        self.lbl_prog = QLabel("Pages: (0/0)")
         layout.addWidget(self.lbl_prog)
 
         # Progress bar
-        self.waiting_bar = wdg.QProgressBar()
-        self.waiting_bar.setValue(0)
-        layout.addWidget(self.waiting_bar)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
 
-        # File path input
-        path_layout = wdg.QHBoxLayout()
-        layout.addLayout(path_layout)
-
-        self.path_in = wdg.QLineEdit()
+        # File input
+        path_layout = QHBoxLayout()
+        self.path_in = QLineEdit()
         self.path_in.setPlaceholderText("Enter PDF path")
-        self.path_in.textChanged.connect(self.path_changed)
+        self.path_in.textChanged.connect(self.update_path)
         path_layout.addWidget(self.path_in, 4)
 
-        brws_btn = wdg.QPushButton("Browse...")
-        brws_btn.clicked.connect(self.srch_for_path)
-        path_layout.addWidget(brws_btn, 1)
+        browse_button = QPushButton("Browse...")
+        browse_button.clicked.connect(self.browse_path)
+        path_layout.addWidget(browse_button, 1)
+        layout.addLayout(path_layout)
 
         # Start button
-        self.strt_btn = wdg.QPushButton("Start")
-        self.strt_btn.clicked.connect(self.Start)
-        layout.addWidget(self.strt_btn)
+        self.start_button = QPushButton("Start")
+        self.start_button.clicked.connect(self.start_ocr)
+        layout.addWidget(self.start_button)
 
-
-    def path_changed(self):
+    def update_path(self):
+        """
+        Update the file path from the input field.
+        """
         self.PATH = self.path_in.text().strip(' \'"')
 
-    def srch_for_path(self):
-        file_name, _ = wdg.QFileDialog.getOpenFileName(self, 'Select PDF', '', 'PDF Files (*.pdf)')
+    def browse_path(self):
+        """
+        Open a file dialog to select a PDF file.
+        """
+        file_name, _ = QFileDialog.getOpenFileName(self, 'Select PDF', '', 'PDF Files (*.pdf)')
         self.path_in.setText(file_name)
 
-    def Start(self):
+    def start_ocr(self):
+        """
+        Start the OCR process in a separate thread.
+        """
+        self.progress_bar.setValue(0)
+        self.lbl_prog.setText("Processing PDF...")
+        self.start_button.setEnabled(False)
 
-
-        self.waiting_bar.setValue(0)
-        self.lbl_prog.setText("Turning PDF to images")
-        self.strt_btn.setEnabled(False)
-        
-
-        if not self.PATH:
-            wdg.QMessageBox.warning(self, "Error", "Please select a valid PDF file.")
+        if not self.PATH or not os.path.exists(self.PATH):
+            QMessageBox.warning(self, "Error", "Please select a valid PDF file.")
+            self.start_button.setEnabled(True)
             return
 
         # Initialize and start the worker thread
         self.worker = WorkerThread(self.PATH)
         self.worker.progress.connect(self.update_progress)
-        self.worker.finished.connect(self.display_result)
+        self.worker.finished.connect(self.complete_ocr)
         self.worker.start()
 
     def update_progress(self, current, total):
+        """
+        Update the progress bar and label.
+        """
+        self.lbl_prog.setText(f"Pages: ({current}/{total})")
+        self.progress_bar.setValue(current * 100 // total)
 
-        self.lbl_prog.setText(f"Images: ({current}/{total})")
-
-        self.waiting_bar.setValue(current * 100 // total)
-
-    def display_result(self, text):
-        self.strt_btn.setEnabled(True)
-        self.waiting_bar.setValue(0)
-        self.lbl_prog.setText("Finished...")
-
+    def complete_ocr(self, message):
+        """
+        Handle completion of the OCR process.
+        """
+        self.start_button.setEnabled(True)
+        self.progress_bar.setValue(0)
+        self.lbl_prog.setText(message)
 
 
 if __name__ == '__main__':
-    app = wdg.QApplication([])
-    win = Main()
-    win.show()
+    app = QApplication([])
+    window = MainWindow()
+    window.show()
     app.exec_()
