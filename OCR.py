@@ -27,8 +27,8 @@ def pdf_to_images(path= None):
     else:
         pdf_path = path
 
-    images = convert_from_path(pdf_path, dpi= 200, poppler_path= con.poppler_path)
 
+    images = convert_from_path(pdf_path, dpi= 200, poppler_path= con.poppler_path)
     return images
 
 
@@ -38,9 +38,6 @@ def imgs_to_text(images):
     extracted_text = ""
     for i, image in enumerate(images):
         text = pytesseract.image_to_string(image, lang= con.LANG)
-
-
-
 
         extracted_text += f"\n\n {'*' * 30} ( Page {i + 1} ) {'*' * 30}\n\n\n" + text
 

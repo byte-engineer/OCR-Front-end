@@ -1,7 +1,7 @@
+from pdf2image import convert_from_path
 import PyQt5.QtWidgets as wdg
+from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
-import OCR
-# from pdf2image import convert_from_path
 import pytesseract
 import os
 import config as con
@@ -17,18 +17,9 @@ class WorkerThread(QtCore.QThread):
         self.path = path
 
     def run(self):
-        images = OCR.pdf_to_images(self.path)
+        images = self.pdf_to_images(self.path)
         total_images = len(images)
         self.imgs_to_text(images, total_images)
-
-
-
-
-        # extracted_text = self.imgs_to_text(images, total_images)
-        # # OCR.w_to_txt(extracted_text, os.path.splitext(self.path)[0]+".txt")
-        # self.finished.emit(extracted_text)
-
-
 
 
     def imgs_to_text(self, images, total_images, path =None):
@@ -49,9 +40,27 @@ class WorkerThread(QtCore.QThread):
             with open(path, 'ab') as file:
                 file.write(bytes(f"\n\n{'*' * 30} ( Page {i + 1} ) {'*' * 30}\n\n\n {text}", 'utf-8'))
 
-
         self.finished.emit("Finished...")
 
+
+    def pdf_to_images(path= None):
+
+        path = os.path.join(os.path.dirname(__file__), path)
+
+        if not os.path.exists(path):
+            print("path Not exist")
+            exit()
+
+        pytesseract.pytesseract.tesseract_cmd = con.tesseract_cmd
+
+        if path is None:
+            pdf_path  = os.path.join(os.path.dirname(__file__), con.FILE)
+        else:
+            pdf_path = path
+
+        images = convert_from_path(pdf_path, dpi= 200, poppler_path= con.poppler_path)
+
+        return images
 
 
 
@@ -76,9 +85,13 @@ class Main(wdg.QMainWindow):
         self.UI()
 
     def UI(self):
-        self.setStyleSheet(open('style.qss').read())
+        self.setWindowTitle(f"OCR-{con.owner}")
         self.setGeometry(300, 300, 400, 150)
-        self.setWindowTitle("OCR-Ahmed")
+        self.setFixedSize(400, 180)
+        self.setStyleSheet(con.QSS)
+        self.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling) 
+        # self.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
+
 
         layout = wdg.QVBoxLayout()
         container = wdg.QWidget()
@@ -111,6 +124,7 @@ class Main(wdg.QMainWindow):
         self.strt_btn = wdg.QPushButton("Start")
         self.strt_btn.clicked.connect(self.Start)
         layout.addWidget(self.strt_btn)
+
 
     def path_changed(self):
         self.PATH = self.path_in.text().strip(' \'"')
