@@ -7,8 +7,8 @@ import config as con
 
 
 class WorkerThread(QThread):
-    progress = pyqtSignal(int, int)  # Emits current progress and total pages
-    finished = pyqtSignal(str)      # Emits completion message
+    progress = pyqtSignal(int, int)
+    finished = pyqtSignal(str)
 
     def __init__(self, path):
         super().__init__()
@@ -41,6 +41,8 @@ class WorkerThread(QThread):
         for i, image in enumerate(images):
             text = pytesseract.image_to_string(image, lang=con.LANG)
             self.progress.emit(i + 1, total_images)
+
+            # Append the text of each page speratelly.
             with open(output_path, 'a', encoding='utf-8') as file:
                 file.write(f"\n\n{'*' * 30} ( Page {i + 1} ) {'*' * 30}\n\n{text}")
 
@@ -117,7 +119,10 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(False)
 
         if not self.PATH or not os.path.exists(self.PATH):
-            QMessageBox.warning(self, "Error", "Please select a valid PDF file.")
+            # QMessageBox.warning(self, "Error", "Please select a valid PDF file.").set
+            warning_box = Warning("Select valid file")
+            warning_box.set_custom_message("This file does NOT exist.")
+            warning_box.exec()
             self.start_button.setEnabled(True)
             return
 
@@ -141,6 +146,34 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(True)
         self.progress_bar.setValue(0)
         self.lbl_prog.setText(message)
+
+
+
+
+class Warning(QMessageBox):
+    def __init__(self, msg):
+        super().__init__()
+
+        self.setIcon(QMessageBox.Icon.Warning)
+        self.setWindowTitle("Error")
+        self.setStyleSheet(con.QSS_worn)
+
+        layout = QVBoxLayout()
+
+        label = QLabel(msg)
+
+
+        layout.addWidget(label)
+
+        button = QPushButton("OK")
+        button.clicked.connect(self.accept)
+        layout.addWidget(button)
+
+        self.setLayout(layout)
+
+    def set_custom_message(self, message):
+        self.findChild(QLabel).setText(message)
+
 
 
 if __name__ == '__main__':
