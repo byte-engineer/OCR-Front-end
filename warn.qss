@@ -4,12 +4,10 @@ QMainWindow {
 }
 
 
-
-
 QLabel {
     font-size: 15px;
     font-weight: bold;
-    color: #b63131;
+    color: #ff0000;
     margin-bottom: 5px;
 }
 

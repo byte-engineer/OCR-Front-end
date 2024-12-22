@@ -1,58 +1,20 @@
+import PIL.Image
 from pdf2image import convert_from_path
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QProgressBar, QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox, QWidget, QHBoxLayout
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QProgressBar, QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox, QWidget, QHBoxLayout, QTabWidget
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 import pytesseract
 import os
 import config as con
+import PIL
+import msg
+import threads
 
-
-class WorkerThread(QThread):
-    progress = pyqtSignal(int, int)
-    finished = pyqtSignal(str)
-
-    def __init__(self, path):
-        super().__init__()
-        self.path = path
-
-    def run(self):
-        try:
-            images = self.pdf_to_images(self.path)
-            total_images = len(images)
-            self.extract_text_from_images(images, total_images)
-        except Exception as e:
-            self.finished.emit(f"Error: {str(e)}")
-
-    def pdf_to_images(self, path):
-        """
-        Convert the given PDF to a list of images.
-        """
-        pytesseract.pytesseract.tesseract_cmd = con.tesseract_cmd
-        images = convert_from_path(path, dpi=200, poppler_path=con.poppler_path)
-        return images
-
-    def extract_text_from_images(self, images, total_images):
-        """
-        Extract text from images and save to a text file.
-        """
-        output_path = os.path.splitext(self.path)[0] + ".txt"
-        with open(output_path, 'w', encoding='utf-8') as file:
-            file.write('')  # Clear the file
-
-        for i, image in enumerate(images):
-            text = pytesseract.image_to_string(image, lang=con.LANG)
-            self.progress.emit(i + 1, total_images)
-
-            # Append the text of each page speratelly.
-            with open(output_path, 'a', encoding='utf-8') as file:
-                file.write(f"\n\n{'*' * 30} ( Page {i + 1} ) {'*' * 30}\n\n{text}")
-
-        self.finished.emit("OCR process completed.")
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.PATH = ''
+        self.PATH = ""
         self.worker = None
         self.init_ui()
 
@@ -61,15 +23,21 @@ class MainWindow(QMainWindow):
         Initialize the main window UI.
         """
         self.setWindowTitle(f"OCR - {con.owner}")
-        self.setGeometry(300, 300, 400, 180)
-        self.setFixedSize(400, 180)
+        self.setGeometry(300, 300, 400, 200)
+        self.setFixedSize(400, 200)
         self.setStyleSheet(con.QSS)
 
+        self.tabs = QTabWidget()
+        self.setCentralWidget(self.tabs)
+        self.pdf_tab()
+        self.image_tap()
+
+    def pdf_tab(self):
         # Layouts
         layout = QVBoxLayout()
         container = QWidget()
         container.setLayout(layout)
-        self.setCentralWidget(container)
+        self.tabs.addTab(container, "PDF")
 
         # Progress label
         self.lbl_prog = QLabel("Pages: (0/0)")
@@ -88,14 +56,41 @@ class MainWindow(QMainWindow):
         path_layout.addWidget(self.path_in, 4)
 
         browse_button = QPushButton("Browse...")
-        browse_button.clicked.connect(self.browse_path)
+        browse_button.clicked.connect(lambda:self.browse_path("*.pdf"))
         path_layout.addWidget(browse_button, 1)
         layout.addLayout(path_layout)
 
         # Start button
         self.start_button = QPushButton("Start")
-        self.start_button.clicked.connect(self.start_ocr)
+        self.start_button.clicked.connect(self.start_ocr_pdf)
         layout.addWidget(self.start_button)
+
+
+    def image_tap(self):
+        container = QWidget()
+        self.tabs.addTab(container, "Image")
+
+        layout = QVBoxLayout()
+        container.setLayout(layout)
+
+        # File input
+        path_layout = QHBoxLayout()
+        self.path_in = QLineEdit()
+        self.path_in.setPlaceholderText("Enter valid Image path")
+        self.path_in.textChanged.connect(self.update_path)
+        path_layout.addWidget(self.path_in, 4)
+
+        browse_button = QPushButton("Browse...")
+        browse_button.clicked.connect(lambda:self.browse_path("*.png *.jpeg *jpg "))
+        path_layout.addWidget(browse_button, 1)
+        layout.addLayout(path_layout)
+
+
+
+        # Start Button
+        self.img_start_btn = QPushButton("start")
+        layout.addWidget(self.img_start_btn)
+
 
     def update_path(self):
         """
@@ -103,34 +98,52 @@ class MainWindow(QMainWindow):
         """
         self.PATH = self.path_in.text().strip(' \'"')
 
-    def browse_path(self):
+    def browse_path(self, target):
         """
         Open a file dialog to select a PDF file.
         """
-        file_name, _ = QFileDialog.getOpenFileName(self, 'Select PDF', '', 'PDF Files (*.pdf)')
+        file_name, _ = QFileDialog.getOpenFileName(self, f'Select {target}', '', f'Files ({target})')
         self.path_in.setText(file_name)
 
-    def start_ocr(self):
+    def start_ocr_pdf(self):
         """
         Start the OCR process in a separate thread.
         """
         self.progress_bar.setValue(0)
         self.lbl_prog.setText("Processing PDF...")
-        self.start_button.setEnabled(False)
+        self.lock_input()
 
-        if not self.PATH or not os.path.exists(self.PATH):
-            # QMessageBox.warning(self, "Error", "Please select a valid PDF file.").set
-            warning_box = Warning("Select valid file")
-            warning_box.set_custom_message("This file does NOT exist.")
-            warning_box.exec()
-            self.start_button.setEnabled(True)
-            return
+        self.validate_path(".pdf")
+        
 
         # Initialize and start the worker thread
-        self.worker = WorkerThread(self.PATH)
+        self.worker = threads.WorkerThread_pdf(self.PATH)
         self.worker.progress.connect(self.update_progress)
         self.worker.finished.connect(self.complete_ocr)
         self.worker.start()
+
+
+    def validate_path(self, target):
+        if not self.PATH or not os.path.exists(self.PATH):
+            warning_box = msg.Warning("Select valid file")
+            warning_box.set_custom_message("This file does NOT exist.")
+            warning_box.exec()
+            self.unlock_input()
+            return
+
+        elif not self.PATH:
+            warning_box = msg.Warning("path is required")
+            warning_box.set_custom_message(f"you have to browse to a valid {target} file")
+            warning_box.exec()
+            self.unlock_input()
+
+        elif not self.PATH.endswith(f'{target}'): 
+            warning_box = msg.Warning("path is required")
+            warning_box.set_custom_message(f"you have to browse to a valid {target} file")
+            warning_box.exec()
+            self.unlock_input()
+            return
+
 
     def update_progress(self, current, total):
         """
@@ -143,36 +156,18 @@ class MainWindow(QMainWindow):
         """
         Handle completion of the OCR process.
         """
-        self.start_button.setEnabled(True)
+        self.unlock_input()
         self.progress_bar.setValue(0)
         self.lbl_prog.setText(message)
 
+    def unlock_input(self):
+        self.start_button.setEnabled(True)
+        self.path_in.setEnabled(True)
 
 
-
-class Warning(QMessageBox):
-    def __init__(self, msg):
-        super().__init__()
-
-        self.setIcon(QMessageBox.Icon.Warning)
-        self.setWindowTitle("Error")
-        self.setStyleSheet(con.QSS_worn)
-
-        layout = QVBoxLayout()
-
-        label = QLabel(msg)
-
-
-        layout.addWidget(label)
-
-        button = QPushButton("OK")
-        button.clicked.connect(self.accept)
-        layout.addWidget(button)
-
-        self.setLayout(layout)
-
-    def set_custom_message(self, message):
-        self.findChild(QLabel).setText(message)
+    def lock_input(self):
+        self.start_button.setEnabled(False)
+        self.path_in.setEnabled(False)
 
 
 
