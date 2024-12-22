@@ -6,6 +6,8 @@ import os.path as path
 from PIL import Image
 
 
+pytesseract.pytesseract.tesseract_cmd = con.tesseract_cmd
+
 
 
 class WorkerThread_pdf(QThread):
@@ -20,7 +22,7 @@ class WorkerThread_pdf(QThread):
         try:
             images = self.pdf_to_images(self.path)
             total_images = len(images)
-            self.extract_text_from_images(images, total_images)
+            self.imgs_to_txt(images, total_images)
         except Exception as e:
             self.finished.emit(f"Error: {str(e)}")
 
@@ -28,11 +30,10 @@ class WorkerThread_pdf(QThread):
         """
         Convert the given PDF to a list of images.
         """
-        pytesseract.pytesseract.tesseract_cmd = con.tesseract_cmd
         images = convert_from_path(path, dpi=200, poppler_path=con.poppler_path)
         return images
 
-    def extract_text_from_images(self, images, total_images):
+    def imgs_to_txt(self, images, total_images):
         """
         Extract text from images and save to a text file.
         """

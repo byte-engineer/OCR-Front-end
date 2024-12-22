@@ -70,79 +70,69 @@ class MainWindow(QMainWindow):
         container = QWidget()
         self.tabs.addTab(container, "Image")
 
-        layout = QVBoxLayout()
-        container.setLayout(layout)
-
-        # File input
-        path_layout = QHBoxLayout()
-        self.path_in = QLineEdit()
-        self.path_in.setPlaceholderText("Enter valid Image path")
-        self.path_in.textChanged.connect(self.update_path)
-        path_layout.addWidget(self.path_in, 4)
-
-        browse_button = QPushButton("Browse...")
-        browse_button.clicked.connect(lambda:self.browse_path("*.png *.jpeg *jpg "))
-        path_layout.addWidget(browse_button, 1)
-        layout.addLayout(path_layout)
-
-
-
-        # Start Button
-        self.img_start_btn = QPushButton("start")
-        layout.addWidget(self.img_start_btn)
-
 
     def update_path(self):
         """
-        Update the file path from the input field.
+        This function Called when the self.path_in changed
         """
         self.PATH = self.path_in.text().strip(' \'"')
+        print(f"path updated: {self.PATH}\n" if con.DBG else "", end="")
+
 
     def browse_path(self, target):
-        """
-        Open a file dialog to select a PDF file.
-        """
         file_name, _ = QFileDialog.getOpenFileName(self, f'Select {target}', '', f'Files ({target})')
         self.path_in.setText(file_name)
+        self.update_path()
+
 
     def start_ocr_pdf(self):
         """
         Start the OCR process in a separate thread.
         """
-        self.progress_bar.setValue(0)
-        self.lbl_prog.setText("Processing PDF...")
-        self.lock_input()
+        if self.validate_path(".pdf"):
 
-        self.validate_path(".pdf")
+            self.progress_bar.setValue(0)
+            self.lbl_prog.setText("Processing PDF...")
+            self.lock_input()
+
+            # Initialize and start the worker thread
+            self.worker = threads.WorkerThread_pdf(self.PATH)
+            self.worker.progress.connect(self.update_progress)
+            self.worker.finished.connect(self.complete_ocr)
+            self.worker.start()
+
+        else:
+            self.lbl_prog.setText("something want Wrong!")
         
-
-        # Initialize and start the worker thread
-        self.worker = threads.WorkerThread_pdf(self.PATH)
-        self.worker.progress.connect(self.update_progress)
-        self.worker.finished.connect(self.complete_ocr)
-        self.worker.start()
-
-
+    
     def validate_path(self, target):
-        if not self.PATH or not os.path.exists(self.PATH):
+    
+        if not self.PATH:
+            print("self.PATH = False" if con.DBG else "", end="")
+            self.unlock_input()
+            warning_box = msg.Warning("path is required")
+            warning_box.set_custom_message(f"you have to browse to a valid {target} file")
+            warning_box.exec()
+            False
+
+        elif not os.path.isfile(self.PATH) or not os.path.exists(self.PATH):
+            print("not a file OR DNE" if con.DBG else "", end="")
             warning_box = msg.Warning("Select valid file")
             warning_box.set_custom_message("This file does NOT exist.")
-            warning_box.exec()
             self.unlock_input()
-            return
+            warning_box.exec()
+            return False
 
-        elif not self.PATH:
+
+        elif not self.PATH.endswith(f'{target}'):
+            print("PATH does Not end with target" if con.DBG else "", end="")
+            self.unlock_input()
             warning_box = msg.Warning("path is required")
             warning_box.set_custom_message(f"you have to browse to a valid {target} file")
             warning_box.exec()
-            self.unlock_input()
-
-        elif not self.PATH.endswith(f'{target}'): 
-            warning_box = msg.Warning("path is required")
-            warning_box.set_custom_message(f"you have to browse to a valid {target} file")
-            warning_box.exec()
-            self.unlock_input()
-            return
+            return False
+        
+        return True
 
 
     def update_progress(self, current, total):
@@ -158,12 +148,14 @@ class MainWindow(QMainWindow):
         """
         self.unlock_input()
         self.progress_bar.setValue(0)
+        self.path_in.setText("") 
         self.lbl_prog.setText(message)
+
 
     def unlock_input(self):
         self.start_button.setEnabled(True)
         self.path_in.setEnabled(True)
-
+        self.path_in.selectAll()
 
     def lock_input(self):
         self.start_button.setEnabled(False)
@@ -172,6 +164,7 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == '__main__':
+
     app = QApplication([])
     window = MainWindow()
     window.show()
