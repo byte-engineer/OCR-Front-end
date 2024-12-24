@@ -14,9 +14,10 @@ class WorkerThread_pdf(QThread):
     progress = pyqtSignal(int, int)
     finished = pyqtSignal(str)
 
-    def __init__(self, path):
+    def __init__(self, path, lang):
         super().__init__()
         self.path = path
+        self.lang = lang
 
     def run(self):
         try:
@@ -42,7 +43,7 @@ class WorkerThread_pdf(QThread):
             file.write('')  # Clear the file
 
         for i, image in enumerate(images):
-            text = pytesseract.image_to_string(image, lang=con.LANG)
+            text = pytesseract.image_to_string(image, lang=self.lang)
             self.progress.emit(i + 1, total_images)
 
             # Append the text of each page speratelly.

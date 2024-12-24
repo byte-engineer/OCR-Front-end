@@ -77,3 +77,15 @@ QTabWidget::pane {
     padding: 8px;
     min-width: 100px;
 }
+
+QCheckBox {
+    color: #ffffff;
+}
+
+
+
+QCheckBox::indicator:unchecked {
+    background-color: #141414;
+    border: 1px solid #888888;
+    border-radius: 2px;
+}

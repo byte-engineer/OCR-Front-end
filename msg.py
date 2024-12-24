@@ -1,12 +1,13 @@
-from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QPushButton, QLabel
+from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QPushButton, QLabel, QWidget
 import config as con
 
 
 
 
-class Warning(QMessageBox):
+class Error(QMessageBox):
     def __init__(self, msg):
         super().__init__()
+        self.setFixedHeight(60)
 
         self.setIcon(QMessageBox.Icon.Warning)
         self.setWindowTitle("Error")
@@ -14,17 +15,7 @@ class Warning(QMessageBox):
 
         layout = QVBoxLayout()
 
-        label = QLabel(msg)
+        cotainer = QWidget()
+        cotainer.setLayout(layout)
 
-
-        layout.addWidget(label)
-
-        button = QPushButton("OK")
-        button.clicked.connect(self.accept)
-        layout.addWidget(button)
-
-        self.setLayout(layout)
-
-    def set_custom_message(self, message):
-        self.findChild(QLabel).setText(message)
-
+        self.setText(msg)
